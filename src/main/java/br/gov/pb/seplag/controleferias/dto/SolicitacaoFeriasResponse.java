@@ -8,16 +8,21 @@ public record SolicitacaoFeriasResponse(
         LocalDate dataInicioGozo,
         Integer diasSolicitados,
         Boolean abonoPecuniario,
-        String status
+        String status,
+        String servidorNome,
+        String numeroPbdoc // 1. Adicionado o PBDOC aqui na estrutura do Record
 ) {
-    // Um construtor prático para converter a Entidade neste DTO
     public SolicitacaoFeriasResponse(SolicitacaoFerias entidade) {
         this(
                 entidade.getId(),
                 entidade.getDataInicioGozo(),
                 entidade.getDiasSolicitados(),
                 entidade.getAbonoPecuniario(),
-                entidade.getStatus()
+                entidade.getStatus(),
+                entidade.getPeriodoAquisitivo() != null && entidade.getPeriodoAquisitivo().getServidor() != null
+                        ? entidade.getPeriodoAquisitivo().getServidor().getNome()
+                        : "Não Informado",
+                entidade.getNumeroPbdoc() // 2. Extrai o PBDOC da entidade e joga para o Front-end
         );
     }
 }

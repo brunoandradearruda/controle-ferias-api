@@ -5,5 +5,6 @@ import java.time.LocalDate;
 public record SolicitacaoFeriasRequest(
         LocalDate dataInicioGozo,
         Integer diasSolicitados,
-        Boolean abonoPecuniario
+        Boolean abonoPecuniario,
+        String numeroPbdoc
 ) {}

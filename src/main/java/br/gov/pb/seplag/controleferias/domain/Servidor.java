@@ -1,5 +1,6 @@
 package br.gov.pb.seplag.controleferias.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore; // <-- Importação adicionada aqui
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,7 +20,10 @@ public class Servidor {
     private String nome;
     private String cargo;
     private String lotacao;
+    private Boolean operadorRaioX = false;
 
+
+    @JsonIgnore // <-- Anotação adicionada aqui para quebrar o loop do JSON
     @OneToMany(mappedBy = "servidor")
     private List<PeriodoAquisitivo> periodosAquisitivos;
 }

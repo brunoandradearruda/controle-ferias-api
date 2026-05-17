@@ -1,5 +1,6 @@
 package br.gov.pb.seplag.controleferias.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore; // <-- Importação adicionada
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,6 +26,25 @@ public class PeriodoAquisitivo {
     private LocalDate dataFim;
     private Integer saldoDias;
 
+    @JsonIgnore // <-- Quebra o loop infinito para não serializar as solicitações de volta
     @OneToMany(mappedBy = "periodoAquisitivo")
     private List<SolicitacaoFerias> solicitacoes;
+    // ---> NOVO: Data que ele completou 12 meses de trabalho <---
+    @Column(name = "data_fim_aquisicao")
+    private LocalDate dataFimAquisicao;
+
+    // ---> NOVO: Regra de Negócio calculada em tempo real (Não vai pro banco, vai pro JSON) <---
+    @Transient
+    public boolean isAlertaPrazo() {
+        // Se não tiver data ou se ele já gastou todos os dias, não tem alerta
+        if (this.dataFimAquisicao == null || this.saldoDias <= 0) {
+            return false;
+        }
+
+        // Calcula a data limite do 23º mês após a aquisição (Art. 79, § 3º)
+        LocalDate dataAlerta = this.dataFimAquisicao.plusMonths(23);
+
+        // Retorna TRUE se a data de hoje já passou ou é igual ao limite do 23º mês
+        return LocalDate.now().isAfter(dataAlerta) || LocalDate.now().isEqual(dataAlerta);
+    }
 }

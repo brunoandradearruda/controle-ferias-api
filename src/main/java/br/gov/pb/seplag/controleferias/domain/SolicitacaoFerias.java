@@ -23,4 +23,5 @@ public class SolicitacaoFerias {
     private Integer diasSolicitados;
     private Boolean abonoPecuniario;
     private String status;
+    private String numeroPbdoc;
 }
