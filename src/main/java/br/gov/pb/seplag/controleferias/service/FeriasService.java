@@ -18,6 +18,11 @@ public class FeriasService {
     private final PeriodoAquisitivoRepository periodoRepository;
     private final SolicitacaoFeriasRepository solicitacaoRepository;
 
+
+
+
+
+
     /**
      * Regra de Negócio Central: Fracionamento de Férias e Controle de Saldo
      */
@@ -33,16 +38,57 @@ public class FeriasService {
 
         Servidor servidor = periodo.getServidor();
 
-        // ---> NOVA REGRA DE NEGÓCIO: PREVENÇÃO DE CHOQUE DE DATAS <---
+        // ========================================================================
+        // ---> TRAVA FIFO (PRIORIDADE DO MAIS ANTIGO) <---
+        // ========================================================================
+        if (servidor != null) {
+            boolean possuiPeriodoPendente = periodoRepository.existsPeriodoMaisAntigoComSaldo(
+                    servidor.getId(),
+                    periodo.getAnoReferencia()
+            );
+
+            if (possuiPeriodoPendente) {
+                throw new IllegalArgumentException(
+                        "Operação Bloqueada: O servidor ainda possui saldo em um período aquisitivo mais antigo. " +
+                                "É obrigatório zerar o saldo dos períodos anteriores antes de utilizar este."
+                );
+            }
+        }
+
+        // ========================================================================
+        // ---> TRAVA DE ADIANTAMENTO ESTATUTÁRIA (ART. 79, § 1º) <---
+        // ========================================================================
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        // Usando o campo dataFim que já existe na sua classe!
+        if (periodo.getDataFim() != null) {
+            // O direito nasce exatamente 1 dia após o fim do ciclo de 12 meses (dataFim + 1 dia)
+            java.time.LocalDate dataAquisicaoDireito = periodo.getDataFim().plusDays(1);
+
+            if (novaSolicitacao.getDataInicioGozo().isBefore(dataAquisicaoDireito)) {
+                throw new IllegalArgumentException(
+                        "Operação Bloqueada: O servidor não completou os 12 meses de exercício deste período. " +
+                                "O direito a estas férias só nasce em " + dataAquisicaoDireito.format(formatter) + "."
+                );
+            }
+        } else {
+            // FALLBACK: Se o período for legado e não possuir dataFim no banco, aplica a trava pelo ano civil
+            if (novaSolicitacao.getDataInicioGozo().getYear() < periodo.getAnoReferencia()) {
+                throw new IllegalArgumentException(
+                        "Operação Bloqueada: Não é possível antecipar as férias. " +
+                                "O período de " + periodo.getAnoReferencia() + " só pode ser usufruído a partir do ano de " + periodo.getAnoReferencia() + "."
+                );
+            }
+        }
+        // ========================================================================
+
+        // ---> PREVENÇÃO DE CHOQUE DE DATAS <---
         if (servidor != null) {
             java.time.LocalDate novaDataInicio = novaSolicitacao.getDataInicioGozo();
-            // Calcula o último dia das novas férias com base nos dias solicitados
             java.time.LocalDate novaDataFim = novaDataInicio.plusDays(novaSolicitacao.getDiasSolicitados() - 1);
 
-            // Lista de status que não causam choque (férias que foram canceladas/rejeitadas)
             List<String> statusIgnorados = List.of("REJEITADA", "INTERROMPIDA");
 
-            // Busca todas as solicitações ativas que este servidor já possui no banco
             List<SolicitacaoFerias> feriasAtivas = solicitacaoRepository
                     .findByPeriodoAquisitivoServidorIdAndStatusNotIn(servidor.getId(), statusIgnorados);
 
@@ -50,9 +96,7 @@ public class FeriasService {
                 java.time.LocalDate inicioAntiga = feriasAntiga.getDataInicioGozo();
                 java.time.LocalDate fimAntiga = inicioAntiga.plusDays(feriasAntiga.getDiasSolicitados() - 1);
 
-                // Fórmula Matemática de Interseção: (Início A <= Fim B) E (Fim A >= Início B)
                 if (!novaDataInicio.isAfter(fimAntiga) && !novaDataFim.isBefore(inicioAntiga)) {
-                    java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
                     throw new IllegalArgumentException(
                             String.format("Choque de datas: O servidor já possui férias registradas neste período (de %s a %s).",
                                     inicioAntiga.format(formatter),
@@ -61,9 +105,8 @@ public class FeriasService {
                 }
             }
         }
-        // ---> FIM DA REGRA DE CHOQUE DE DATAS <---
 
-        // ---> NOVA REGRA DE NEGÓCIO: ART. 80 (RAIOS X) <---
+        // ---> ART. 80 (RAIOS X) <---
         if (servidor != null && Boolean.TRUE.equals(servidor.getOperadorRaioX())) {
             if (novaSolicitacao.getDiasSolicitados() != 20) {
                 throw new IllegalArgumentException(
@@ -72,7 +115,7 @@ public class FeriasService {
             }
         }
 
-        // Verifica se há saldo suficiente (Regra geral aplicável a ambos)
+        // Verifica se há saldo suficiente
         if (novaSolicitacao.getDiasSolicitados() > periodo.getSaldoDias()) {
             throw new IllegalArgumentException(
                     "Saldo insuficiente. Dias solicitados: " + novaSolicitacao.getDiasSolicitados() +
@@ -85,13 +128,14 @@ public class FeriasService {
 
         novaSolicitacao.setPeriodoAquisitivo(periodo);
         novaSolicitacao.setStatus("PENDENTE_CHEFIA");
-
-        // Removemos qualquer menção ao abono já que ele foi retirado da regra
         novaSolicitacao.setAbonoPecuniario(false);
 
         periodoRepository.save(periodo);
         return solicitacaoRepository.save(novaSolicitacao);
     }
+
+
+
     /**
      * Busca o histórico de solicitações de um período específico
      */
