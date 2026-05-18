@@ -33,6 +33,36 @@ public class FeriasService {
 
         Servidor servidor = periodo.getServidor();
 
+        // ---> NOVA REGRA DE NEGÓCIO: PREVENÇÃO DE CHOQUE DE DATAS <---
+        if (servidor != null) {
+            java.time.LocalDate novaDataInicio = novaSolicitacao.getDataInicioGozo();
+            // Calcula o último dia das novas férias com base nos dias solicitados
+            java.time.LocalDate novaDataFim = novaDataInicio.plusDays(novaSolicitacao.getDiasSolicitados() - 1);
+
+            // Lista de status que não causam choque (férias que foram canceladas/rejeitadas)
+            List<String> statusIgnorados = List.of("REJEITADA", "INTERROMPIDA");
+
+            // Busca todas as solicitações ativas que este servidor já possui no banco
+            List<SolicitacaoFerias> feriasAtivas = solicitacaoRepository
+                    .findByPeriodoAquisitivoServidorIdAndStatusNotIn(servidor.getId(), statusIgnorados);
+
+            for (SolicitacaoFerias feriasAntiga : feriasAtivas) {
+                java.time.LocalDate inicioAntiga = feriasAntiga.getDataInicioGozo();
+                java.time.LocalDate fimAntiga = inicioAntiga.plusDays(feriasAntiga.getDiasSolicitados() - 1);
+
+                // Fórmula Matemática de Interseção: (Início A <= Fim B) E (Fim A >= Início B)
+                if (!novaDataInicio.isAfter(fimAntiga) && !novaDataFim.isBefore(inicioAntiga)) {
+                    java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                    throw new IllegalArgumentException(
+                            String.format("Choque de datas: O servidor já possui férias registradas neste período (de %s a %s).",
+                                    inicioAntiga.format(formatter),
+                                    fimAntiga.format(formatter))
+                    );
+                }
+            }
+        }
+        // ---> FIM DA REGRA DE CHOQUE DE DATAS <---
+
         // ---> NOVA REGRA DE NEGÓCIO: ART. 80 (RAIOS X) <---
         if (servidor != null && Boolean.TRUE.equals(servidor.getOperadorRaioX())) {
             if (novaSolicitacao.getDiasSolicitados() != 20) {
@@ -62,7 +92,6 @@ public class FeriasService {
         periodoRepository.save(periodo);
         return solicitacaoRepository.save(novaSolicitacao);
     }
-
     /**
      * Busca o histórico de solicitações de um período específico
      */

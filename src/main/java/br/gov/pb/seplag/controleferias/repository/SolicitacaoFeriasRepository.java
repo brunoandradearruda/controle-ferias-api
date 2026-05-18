@@ -9,7 +9,9 @@ import java.util.List;
 @Repository
 public interface SolicitacaoFeriasRepository extends JpaRepository<SolicitacaoFerias, Long> {
 
-    // O Spring faz a mágica de criar a consulta SQL só pelo nome do método!
     List<SolicitacaoFerias> findByPeriodoAquisitivoId(Long periodoAquisitivoId);
 
+    // ---> NOVO MÉTODO COMPATÍVEL COM O SPRING DATA <---
+    // Busca todas as férias de um servidor específico, ignorando as rejeitadas e interrompidas
+    List<SolicitacaoFerias> findByPeriodoAquisitivoServidorIdAndStatusNotIn(Long servidorId, List<String> statusIgnorados);
 }
