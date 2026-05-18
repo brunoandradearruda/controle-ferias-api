@@ -21,6 +21,10 @@ public class Servidor {
     private String cargo;
     private String lotacao;
     private Boolean operadorRaioX = false;
+    private Boolean ativo = true;
+    private String motivoDesligamento;
+
+
 
 
     @JsonIgnore // <-- Anotação adicionada aqui para quebrar o loop do JSON

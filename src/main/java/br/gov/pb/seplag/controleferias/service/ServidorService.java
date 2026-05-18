@@ -40,4 +40,25 @@ public class ServidorService {
     public List<Servidor> listarTodos() {
         return servidorRepository.findAll();
     }
+
+
+    @Transactional
+    public void inativarServidor(Long id, String motivo) { // <-- A MÁGICA ESTÁ AQUI: Adicionado o ", String motivo"
+        Servidor servidor = servidorRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Servidor não encontrado."));
+
+        servidor.setAtivo(false);
+        servidor.setMotivoDesligamento(motivo); // <-- E aqui ele salva o motivo no banco!
+        servidorRepository.save(servidor);
+    }
+
+    @Transactional
+    public void reativarServidor(Long id) {
+        Servidor servidor = servidorRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Servidor não encontrado."));
+
+        servidor.setAtivo(true);
+        servidorRepository.save(servidor);
+    }
+
 }

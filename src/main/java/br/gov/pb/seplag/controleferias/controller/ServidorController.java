@@ -17,6 +17,9 @@ public class ServidorController {
 
     private final ServidorService servidorService;
 
+    // DTO rápido criado aqui mesmo para receber o texto do motivo do Front-end
+    public record MotivoRequest(String motivo) {}
+
     // Rota para CRIAR um novo servidor
     @PostMapping
     public ResponseEntity<Servidor> cadastrar(@RequestBody Servidor servidor) {
@@ -29,4 +32,20 @@ public class ServidorController {
     public ResponseEntity<List<Servidor>> listar() {
         return ResponseEntity.ok(servidorService.listarTodos());
     }
+
+    // ---> ROTA ATUALIZADA: Agora recebe o MotivoRequest <---
+    @PutMapping("/{id}/inativar")
+    public ResponseEntity<Void> inativar(@PathVariable Long id, @RequestBody MotivoRequest request) {
+        // Passa o ID e o motivo para o Service
+        servidorService.inativarServidor(id, request.motivo());
+        return ResponseEntity.ok().build();
+    }
+
+    // Rota para REATIVAR
+    @PutMapping("/{id}/reativar")
+    public ResponseEntity<Void> reativar(@PathVariable Long id) {
+        servidorService.reativarServidor(id);
+        return ResponseEntity.ok().build();
+    }
+
 }

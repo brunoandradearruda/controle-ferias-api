@@ -10,7 +10,9 @@ public record SolicitacaoFeriasResponse(
         Boolean abonoPecuniario,
         String status,
         String servidorNome,
-        String numeroPbdoc // 1. Adicionado o PBDOC aqui na estrutura do Record
+        String numeroPbdoc,
+        String lotacao,
+        String matricula // 1. Adicionado o campo Matrícula no cabeçalho do Record
 ) {
     public SolicitacaoFeriasResponse(SolicitacaoFerias entidade) {
         this(
@@ -22,7 +24,15 @@ public record SolicitacaoFeriasResponse(
                 entidade.getPeriodoAquisitivo() != null && entidade.getPeriodoAquisitivo().getServidor() != null
                         ? entidade.getPeriodoAquisitivo().getServidor().getNome()
                         : "Não Informado",
-                entidade.getNumeroPbdoc() // 2. Extrai o PBDOC da entidade e joga para o Front-end
+                entidade.getNumeroPbdoc(),
+                entidade.getPeriodoAquisitivo() != null && entidade.getPeriodoAquisitivo().getServidor() != null
+                        ? java.util.Optional.ofNullable(entidade.getPeriodoAquisitivo().getServidor().getLotacao()).orElse("Não Informada")
+                        : "Não Informada",
+
+                // 2. Extrai a matrícula do Servidor de forma segura contra Nulls
+                entidade.getPeriodoAquisitivo() != null && entidade.getPeriodoAquisitivo().getServidor() != null
+                        ? java.util.Optional.ofNullable(entidade.getPeriodoAquisitivo().getServidor().getMatricula()).orElse("-")
+                        : "-"
         );
     }
 }

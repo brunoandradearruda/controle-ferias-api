@@ -14,6 +14,6 @@ public class PeriodoAquisitivoService {
     private final PeriodoAquisitivoRepository periodoRepository;
 
     public List<PeriodoAquisitivo> listarTodos() {
-        return periodoRepository.findAll();
+        return periodoRepository.findByServidorAtivoTrue();
     }
 }
