@@ -18,11 +18,6 @@ public class FeriasService {
     private final PeriodoAquisitivoRepository periodoRepository;
     private final SolicitacaoFeriasRepository solicitacaoRepository;
 
-
-
-
-
-
     /**
      * Regra de Negócio Central: Fracionamento de Férias e Controle de Saldo
      */
@@ -56,13 +51,12 @@ public class FeriasService {
         }
 
         // ========================================================================
-        // ---> TRAVA DE ADIANTAMENTO ESTATUTÁRIA (ART. 79, § 1º) <---
+        // ---> TRAVAS ESTATUTÁRIAS DE TEMPO (ART. 79) <---
         // ========================================================================
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        // Usando o campo dataFim que já existe na sua classe!
         if (periodo.getDataFim() != null) {
-            // O direito nasce exatamente 1 dia após o fim do ciclo de 12 meses (dataFim + 1 dia)
+            // 1. TRAVA DE ADIANTAMENTO (O piso: não pode tirar antes de fechar 12 meses)
             java.time.LocalDate dataAquisicaoDireito = periodo.getDataFim().plusDays(1);
 
             if (novaSolicitacao.getDataInicioGozo().isBefore(dataAquisicaoDireito)) {
@@ -71,8 +65,20 @@ public class FeriasService {
                                 "O direito a estas férias só nasce em " + dataAquisicaoDireito.format(formatter) + "."
                 );
             }
+
+            // 2. NOVA TRAVA: LIMITE MÁXIMO DE GOZO (O teto: evita jogar férias para 2030)
+            // Calculando o limite (24 meses após fechar o ciclo). Se precisar de mais/menos meses, basta alterar o número 24.
+            java.time.LocalDate dataLimiteMaxima = periodo.getDataFim().plusMonths(24);
+
+            if (novaSolicitacao.getDataInicioGozo().isAfter(dataLimiteMaxima)) {
+                throw new IllegalArgumentException(
+                        "Operação Bloqueada: A data solicitada ultrapassa o limite legal de acumulação. " +
+                                "Os dias referentes ao período de " + periodo.getAnoReferencia() + " devem ser gozados até, no máximo, " + dataLimiteMaxima.format(formatter) + "."
+                );
+            }
+
         } else {
-            // FALLBACK: Se o período for legado e não possuir dataFim no banco, aplica a trava pelo ano civil
+            // FALLBACK: Se o período for legado e não possuir dataFim no banco
             if (novaSolicitacao.getDataInicioGozo().getYear() < periodo.getAnoReferencia()) {
                 throw new IllegalArgumentException(
                         "Operação Bloqueada: Não é possível antecipar as férias. " +
@@ -133,7 +139,6 @@ public class FeriasService {
         periodoRepository.save(periodo);
         return solicitacaoRepository.save(novaSolicitacao);
     }
-
 
 
     /**

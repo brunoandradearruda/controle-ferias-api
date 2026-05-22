@@ -1,9 +1,11 @@
 package br.gov.pb.seplag.controleferias.domain;
 
-import com.fasterxml.jackson.annotation.JsonIgnore; // <-- Importação adicionada aqui
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.LocalDate; // <-- Importação necessária para lidar com datas modernas no Java
 import java.util.List;
 
 @Entity
@@ -24,10 +26,11 @@ public class Servidor {
     private Boolean ativo = true;
     private String motivoDesligamento;
 
+    // ---> NOVO CAMPO: A âncora temporal do servidor para cálculo estatutário <---
+    @Column(name = "data_admissao")
+    private LocalDate dataAdmissao;
 
-
-
-    @JsonIgnore // <-- Anotação adicionada aqui para quebrar o loop do JSON
+    @JsonIgnore
     @OneToMany(mappedBy = "servidor")
     private List<PeriodoAquisitivo> periodosAquisitivos;
 }
