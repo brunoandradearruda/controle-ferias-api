@@ -48,4 +48,32 @@ public class ServidorController {
         return ResponseEntity.ok().build();
     }
 
+
+    // DTO para receber o ano do Front-end
+    public record PeriodoAcumuladoRequest(int anoReferencia) {}
+
+    // ---> NOVA ROTA: Adicionar Férias Acumuladas <---
+    @PostMapping("/{id}/periodos-acumulados")
+    public ResponseEntity<Void> adicionarFériasAtrasadas(
+            @PathVariable Long id,
+            @RequestBody PeriodoAcumuladoRequest request) {
+
+        servidorService.adicionarPeriodoAcumulado(id, request.anoReferencia());
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    // ENDPOINT TEMPORÁRIO PARA TESTES E SIMULAÇÕES (Pode apagar depois que for para produção)
+    @PostMapping("/{id}/mock-historico")
+    public ResponseEntity<String> gerarHistoricoMock(
+            @PathVariable Long id,
+            @RequestParam int anoInicio,
+            @RequestParam int anoFim) {
+
+        // Aqui chamamos o serviço para criar a massa de dados
+        servidorService.gerarHistoricoGozadoSimulado(id, anoInicio, anoFim);
+
+        return ResponseEntity.ok("✅ Histórico de " + anoInicio + " até " + anoFim + " gerado com sucesso!");
+    }
+
+
 }

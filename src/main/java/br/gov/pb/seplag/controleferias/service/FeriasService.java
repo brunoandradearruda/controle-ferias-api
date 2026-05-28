@@ -22,12 +22,13 @@ public class FeriasService {
      * Regra de Negócio Central: Fracionamento de Férias e Controle de Saldo
      */
     @Transactional
-    public SolicitacaoFerias solicitarFracionamento(Long periodoId, SolicitacaoFerias novaSolicitacao) {
+    public SolicitacaoFerias solicitarFracionamento(Long periodoId, SolicitacaoFerias novaSolicitacao, boolean isRetroativo) {
 
         PeriodoAquisitivo periodo = periodoRepository.findById(periodoId)
                 .orElseThrow(() -> new IllegalArgumentException("Período Aquisitivo não encontrado."));
 
-        if (novaSolicitacao.getDataInicioGozo().isBefore(java.time.LocalDate.now())) {
+        // ---> NOVA REGRA: Só bloqueia datas passadas se o modo Histórico estiver DESLIGADO <---
+        if (!isRetroativo && novaSolicitacao.getDataInicioGozo().isBefore(java.time.LocalDate.now())) {
             throw new IllegalArgumentException("A data de início das férias não pode ser no passado.");
         }
 
@@ -57,6 +58,7 @@ public class FeriasService {
 
         if (periodo.getDataFim() != null) {
             // 1. TRAVA DE ADIANTAMENTO (O piso: não pode tirar antes de fechar 12 meses)
+            // Mantemos essa trava mesmo no histórico, pois ele só ganha o direito após 12 meses.
             java.time.LocalDate dataAquisicaoDireito = periodo.getDataFim().plusDays(1);
 
             if (novaSolicitacao.getDataInicioGozo().isBefore(dataAquisicaoDireito)) {
@@ -67,10 +69,10 @@ public class FeriasService {
             }
 
             // 2. NOVA TRAVA: LIMITE MÁXIMO DE GOZO (O teto: evita jogar férias para 2030)
-            // Calculando o limite (24 meses após fechar o ciclo). Se precisar de mais/menos meses, basta alterar o número 24.
+            // Se for histórico retroativo, a gente desliga essa trava para permitir o lançamento do passado.
             java.time.LocalDate dataLimiteMaxima = periodo.getDataFim().plusMonths(24);
 
-            if (novaSolicitacao.getDataInicioGozo().isAfter(dataLimiteMaxima)) {
+            if (!isRetroativo && novaSolicitacao.getDataInicioGozo().isAfter(dataLimiteMaxima)) {
                 throw new IllegalArgumentException(
                         "Operação Bloqueada: A data solicitada ultrapassa o limite legal de acumulação. " +
                                 "Os dias referentes ao período de " + periodo.getAnoReferencia() + " devem ser gozados até, no máximo, " + dataLimiteMaxima.format(formatter) + "."
@@ -133,13 +135,18 @@ public class FeriasService {
         periodo.setSaldoDias(periodo.getSaldoDias() - novaSolicitacao.getDiasSolicitados());
 
         novaSolicitacao.setPeriodoAquisitivo(periodo);
-        novaSolicitacao.setStatus("PENDENTE_CHEFIA");
         novaSolicitacao.setAbonoPecuniario(false);
+
+        // ---> NOVA REGRA DE STATUS <---
+        if (isRetroativo) {
+            novaSolicitacao.setStatus("APROVADA"); // Histórico de vida já está concluído
+        } else {
+            novaSolicitacao.setStatus("PENDENTE_CHEFIA"); // Dia a dia vai pra chefia
+        }
 
         periodoRepository.save(periodo);
         return solicitacaoRepository.save(novaSolicitacao);
     }
-
 
     /**
      * Busca o histórico de solicitações de um período específico
@@ -177,6 +184,7 @@ public class FeriasService {
         periodoRepository.save(periodo);
         solicitacaoRepository.save(solicitacao);
     }
+
     public List<SolicitacaoFerias> listarTodasGerais() {
         return solicitacaoRepository.findAll();
     }
@@ -223,5 +231,4 @@ public class FeriasService {
         periodoRepository.save(periodo);
         solicitacaoRepository.save(solicitacao);
     }
-
 }

@@ -6,5 +6,6 @@ public record SolicitacaoFeriasRequest(
         LocalDate dataInicioGozo,
         Integer diasSolicitados,
         Boolean abonoPecuniario,
-        String numeroPbdoc
+        String numeroPbdoc,
+        Boolean isRetroativo // <-- NOVO: Flag para receber o "Modo Histórico" do Front-end
 ) {}

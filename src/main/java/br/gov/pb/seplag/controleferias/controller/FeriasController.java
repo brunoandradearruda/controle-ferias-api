@@ -34,8 +34,11 @@ public class FeriasController {
             novaSolicitacao.setAbonoPecuniario(request.abonoPecuniario() != null ? request.abonoPecuniario() : false);
             novaSolicitacao.setNumeroPbdoc(request.numeroPbdoc());
 
-            // 2. Chama o serviço para processar a regra de negócio (matemática do saldo)
-            SolicitacaoFerias solicitacaoSalva = feriasService.solicitarFracionamento(periodoId, novaSolicitacao);
+            // ---> MUDANÇA: Captura de forma segura a flag para o Modo Histórico Retroativo <---
+            boolean modoRetroativo = Boolean.TRUE.equals(request.isRetroativo());
+
+            // 2. Chama o serviço passando a nova flag para processar a regra de negócio
+            SolicitacaoFerias solicitacaoSalva = feriasService.solicitarFracionamento(periodoId, novaSolicitacao, modoRetroativo);
 
             // 3. Converte a entidade salva de volta para DTO e retorna Status 201 (Created)
             SolicitacaoFeriasResponse response = new SolicitacaoFeriasResponse(solicitacaoSalva);
@@ -45,7 +48,6 @@ public class FeriasController {
             // Se cair na nossa regra de "Saldo Insuficiente", retorna um erro 400 amigável
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
-
     }
 
     // Rota: GET http://localhost:8080/api/v1/periodos/{periodoId}/solicitacoes
@@ -75,7 +77,7 @@ public class FeriasController {
     // NOVO: Rota para REJEITAR a solicitação de férias (devolvendo o saldo ao servidor)
     // Rota: PUT http://localhost:8080/api/v1/solicitacoes/{id}/rejeitar
     @PutMapping("/solicitacoes/{id}/rejeitar")
-    public ResponseEntity<Void> rejeitar(@PathVariable Long id) {
+    public ResponseEntity<Void> reativar(@PathVariable Long id) {
         feriasService.rejeitar(id);
         return ResponseEntity.ok().build();
     }
@@ -107,5 +109,4 @@ public class FeriasController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
 }
