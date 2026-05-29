@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -26,9 +27,17 @@ public class PeriodoAquisitivo {
     private LocalDate dataFim;
     private Integer saldoDias;
 
-    @JsonIgnore // <-- Quebra o loop infinito para não serializar as solicitações de volta
+
+    // ... seus atributos existentes (id, anoReferencia, dataInicio, etc) ...
+
+
+    @OneToMany(mappedBy = "periodoAquisitivo", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("dataEvento ASC")
+    private List<OcorrenciaPeriodoAquisitivo> ocorrencias = new ArrayList<>();
+
+    @JsonIgnore
     @OneToMany(mappedBy = "periodoAquisitivo")
-    private List<SolicitacaoFerias> solicitacoes;
+    private List<SolicitacaoFerias> solicitacoes = new ArrayList<>(); // <-- Inicialização adicionada
     // ---> NOVO: Data que ele completou 12 meses de trabalho <---
     @Column(name = "data_fim_aquisicao")
     private LocalDate dataFimAquisicao;
