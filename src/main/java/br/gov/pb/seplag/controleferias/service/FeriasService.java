@@ -1,5 +1,6 @@
 package br.gov.pb.seplag.controleferias.service;
 
+import br.gov.pb.seplag.controleferias.domain.ModalidadeFerias;
 import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo;
 import br.gov.pb.seplag.controleferias.domain.Servidor;
 import br.gov.pb.seplag.controleferias.domain.SolicitacaoFerias;
@@ -19,7 +20,7 @@ public class FeriasService {
     private final SolicitacaoFeriasRepository solicitacaoRepository;
 
     /**
-     * Regra de Negócio Central: Fracionamento de Férias e Controle de Saldo
+     * Regra de Negócio Central: Fracionamento de Férias, Indenização e Controle de Saldo
      */
     @Transactional
     public SolicitacaoFerias solicitarFracionamento(Long periodoId, SolicitacaoFerias novaSolicitacao, boolean isRetroativo) {
@@ -27,8 +28,15 @@ public class FeriasService {
         PeriodoAquisitivo periodo = periodoRepository.findById(periodoId)
                 .orElseThrow(() -> new IllegalArgumentException("Período Aquisitivo não encontrado."));
 
-        // ---> NOVA REGRA: Só bloqueia datas passadas se o modo Histórico estiver DESLIGADO <---
-        if (!isRetroativo && novaSolicitacao.getDataInicioGozo().isBefore(java.time.LocalDate.now())) {
+        // Garante que a modalidade não venha nula (Fallback de segurança)
+        if (novaSolicitacao.getModalidade() == null) {
+            novaSolicitacao.setModalidade(ModalidadeFerias.GOZO);
+        }
+
+        boolean isGozo = novaSolicitacao.getModalidade() == ModalidadeFerias.GOZO;
+
+        // ---> NOVA REGRA: Só bloqueia datas passadas se o modo Histórico estiver DESLIGADO e for GOZO <---
+        if (isGozo && !isRetroativo && novaSolicitacao.getDataInicioGozo().isBefore(java.time.LocalDate.now())) {
             throw new IllegalArgumentException("A data de início das férias não pode ser no passado.");
         }
 
@@ -57,31 +65,38 @@ public class FeriasService {
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         if (periodo.getDataFim() != null) {
-            // 1. TRAVA DE ADIANTAMENTO (O piso: não pode tirar antes de fechar 12 meses)
-            // Mantemos essa trava mesmo no histórico, pois ele só ganha o direito após 12 meses.
             java.time.LocalDate dataAquisicaoDireito = periodo.getDataFim().plusDays(1);
 
-            if (novaSolicitacao.getDataInicioGozo().isBefore(dataAquisicaoDireito)) {
-                throw new IllegalArgumentException(
-                        "Operação Bloqueada: O servidor não completou os 12 meses de exercício deste período. " +
-                                "O direito a estas férias só nasce em " + dataAquisicaoDireito.format(formatter) + "."
-                );
-            }
+            if (isGozo) {
+                // 1. TRAVA DE ADIANTAMENTO (GOZO)
+                if (novaSolicitacao.getDataInicioGozo().isBefore(dataAquisicaoDireito)) {
+                    throw new IllegalArgumentException(
+                            "Operação Bloqueada: O servidor não completou os 12 meses de exercício deste período. " +
+                                    "O direito a estas férias só nasce em " + dataAquisicaoDireito.format(formatter) + "."
+                    );
+                }
 
-            // 2. NOVA TRAVA: LIMITE MÁXIMO DE GOZO (O teto: evita jogar férias para 2030)
-            // Se for histórico retroativo, a gente desliga essa trava para permitir o lançamento do passado.
-            java.time.LocalDate dataLimiteMaxima = periodo.getDataFim().plusMonths(24);
-
-            if (!isRetroativo && novaSolicitacao.getDataInicioGozo().isAfter(dataLimiteMaxima)) {
-                throw new IllegalArgumentException(
-                        "Operação Bloqueada: A data solicitada ultrapassa o limite legal de acumulação. " +
-                                "Os dias referentes ao período de " + periodo.getAnoReferencia() + " devem ser gozados até, no máximo, " + dataLimiteMaxima.format(formatter) + "."
-                );
+                // 2. TRAVA DE LIMITE MÁXIMO DE GOZO
+                java.time.LocalDate dataLimiteMaxima = periodo.getDataFim().plusMonths(24);
+                if (!isRetroativo && novaSolicitacao.getDataInicioGozo().isAfter(dataLimiteMaxima)) {
+                    throw new IllegalArgumentException(
+                            "Operação Bloqueada: A data solicitada ultrapassa o limite legal de acumulação. " +
+                                    "Os dias referentes ao período de " + periodo.getAnoReferencia() + " devem ser gozados até, no máximo, " + dataLimiteMaxima.format(formatter) + "."
+                    );
+                }
+            } else {
+                // SE FOR INDENIZAÇÃO: Valida apenas se ele já tem o direito adquirido no momento de hoje
+                if (!isRetroativo && java.time.LocalDate.now().isBefore(dataAquisicaoDireito)) {
+                    throw new IllegalArgumentException(
+                            "Operação Bloqueada: Não é possível indenizar um período que ainda não foi integralmente adquirido. " +
+                                    "A aquisição completa ocorrerá apenas em " + dataAquisicaoDireito.format(formatter) + "."
+                    );
+                }
             }
 
         } else {
-            // FALLBACK: Se o período for legado e não possuir dataFim no banco
-            if (novaSolicitacao.getDataInicioGozo().getYear() < periodo.getAnoReferencia()) {
+            // FALLBACK: Se o período for legado e não possuir dataFim no banco (Apenas para GOZO)
+            if (isGozo && novaSolicitacao.getDataInicioGozo().getYear() < periodo.getAnoReferencia()) {
                 throw new IllegalArgumentException(
                         "Operação Bloqueada: Não é possível antecipar as férias. " +
                                 "O período de " + periodo.getAnoReferencia() + " só pode ser usufruído a partir do ano de " + periodo.getAnoReferencia() + "."
@@ -90,8 +105,8 @@ public class FeriasService {
         }
         // ========================================================================
 
-        // ---> PREVENÇÃO DE CHOQUE DE DATAS <---
-        if (servidor != null) {
+        // ---> PREVENÇÃO DE CHOQUE DE DATAS (APENAS PARA GOZO) <---
+        if (isGozo && servidor != null) {
             java.time.LocalDate novaDataInicio = novaSolicitacao.getDataInicioGozo();
             java.time.LocalDate novaDataFim = novaDataInicio.plusDays(novaSolicitacao.getDiasSolicitados() - 1);
 
@@ -101,6 +116,11 @@ public class FeriasService {
                     .findByPeriodoAquisitivoServidorIdAndStatusNotIn(servidor.getId(), statusIgnorados);
 
             for (SolicitacaoFerias feriasAntiga : feriasAtivas) {
+                // Pula a validação se as férias antigas cadastradas também foram de indenização (pois não têm data de início)
+                if (feriasAntiga.getModalidade() == ModalidadeFerias.INDENIZACAO) {
+                    continue;
+                }
+
                 java.time.LocalDate inicioAntiga = feriasAntiga.getDataInicioGozo();
                 java.time.LocalDate fimAntiga = inicioAntiga.plusDays(feriasAntiga.getDiasSolicitados() - 1);
 
@@ -118,7 +138,7 @@ public class FeriasService {
         if (servidor != null && Boolean.TRUE.equals(servidor.getOperadorRaioX())) {
             if (novaSolicitacao.getDiasSolicitados() != 20) {
                 throw new IllegalArgumentException(
-                        "Pelo Art. 80 do Estatuto, servidores que operam Raios X devem gozar obrigatoriamente de 20 dias por semestre."
+                        "Pelo Art. 80 do Estatuto, servidores que operam Raios X devem gozar/indenizar obrigatoriamente 20 dias por semestre."
                 );
             }
         }
@@ -135,11 +155,16 @@ public class FeriasService {
         periodo.setSaldoDias(periodo.getSaldoDias() - novaSolicitacao.getDiasSolicitados());
 
         novaSolicitacao.setPeriodoAquisitivo(periodo);
-        novaSolicitacao.setAbonoPecuniario(false);
+
+        // Define o abono falso caso não tenha vindo no payload
+        if (novaSolicitacao.getAbonoPecuniario() == null) {
+            novaSolicitacao.setAbonoPecuniario(false);
+        }
 
         // ---> NOVA REGRA DE STATUS <---
-        if (isRetroativo) {
-            novaSolicitacao.setStatus("APROVADA"); // Histórico de vida já está concluído
+        // Indenização também já cai como concluída/aprovada na linha do tempo
+        if (isRetroativo || !isGozo) {
+            novaSolicitacao.setStatus("APROVADA");
         } else {
             novaSolicitacao.setStatus("PENDENTE_CHEFIA"); // Dia a dia vai pra chefia
         }
@@ -199,6 +224,10 @@ public class FeriasService {
 
         if (!"APROVADA".equals(solicitacao.getStatus())) {
             throw new IllegalArgumentException("Apenas férias aprovadas podem ser interrompidas.");
+        }
+
+        if (solicitacao.getModalidade() == ModalidadeFerias.INDENIZACAO) {
+            throw new IllegalArgumentException("Férias convertidas em indenização pecuniária não podem ser interrompidas.");
         }
 
         java.time.LocalDate hoje = java.time.LocalDate.now();

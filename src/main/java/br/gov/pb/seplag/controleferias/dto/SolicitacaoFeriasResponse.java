@@ -1,10 +1,12 @@
 package br.gov.pb.seplag.controleferias.dto;
 
+import br.gov.pb.seplag.controleferias.domain.ModalidadeFerias; // <-- NOVO IMPORT
 import br.gov.pb.seplag.controleferias.domain.SolicitacaoFerias;
 import java.time.LocalDate;
 
 public record SolicitacaoFeriasResponse(
         Long id,
+        ModalidadeFerias modalidade, // <-- NOVO CAMPO AQUI
         LocalDate dataInicioGozo,
         Integer diasSolicitados,
         Boolean abonoPecuniario,
@@ -13,11 +15,12 @@ public record SolicitacaoFeriasResponse(
         String numeroPbdoc,
         String lotacao,
         String matricula,
-        Integer anoReferencia // <--- 1. NOVO CAMPO AQUI
+        Integer anoReferencia
 ) {
     public SolicitacaoFeriasResponse(SolicitacaoFerias entidade) {
         this(
                 entidade.getId(),
+                entidade.getModalidade(), // <-- EXTRAINDO A MODALIDADE DA ENTIDADE
                 entidade.getDataInicioGozo(),
                 entidade.getDiasSolicitados(),
                 entidade.getAbonoPecuniario(),
@@ -33,7 +36,7 @@ public record SolicitacaoFeriasResponse(
                         ? java.util.Optional.ofNullable(entidade.getPeriodoAquisitivo().getServidor().getMatricula()).orElse("-")
                         : "-",
 
-                // 2. Extrai o ano de referência do período aquisitivo
+                // Extrai o ano de referência do período aquisitivo
                 entidade.getPeriodoAquisitivo() != null ? entidade.getPeriodoAquisitivo().getAnoReferencia() : null
         );
     }

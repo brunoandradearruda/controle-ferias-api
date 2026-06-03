@@ -28,6 +28,10 @@ public class FeriasController {
         try {
             // 1. Converte o DTO que veio da internet para a Entidade do banco
             SolicitacaoFerias novaSolicitacao = new SolicitacaoFerias();
+
+            // ---> A LINHA QUE FALTAVA PARA SALVAR O SISTEMA <---
+            novaSolicitacao.setModalidade(request.modalidade());
+
             novaSolicitacao.setDataInicioGozo(request.dataInicioGozo());
             novaSolicitacao.setDiasSolicitados(request.diasSolicitados());
             // Se o abono não for enviado, assume false por padrão
