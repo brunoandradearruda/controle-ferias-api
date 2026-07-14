@@ -1,9 +1,9 @@
 package br.gov.pb.seplag.controleferias.controller;
 
 import br.gov.pb.seplag.controleferias.domain.Servidor;
-import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo; // <-- IMPORT ADICIONADO
+import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo;
 import br.gov.pb.seplag.controleferias.service.ServidorService;
-import br.gov.pb.seplag.controleferias.repository.PeriodoAquisitivoRepository; // <-- IMPORT ADICIONADO
+import br.gov.pb.seplag.controleferias.repository.PeriodoAquisitivoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +18,7 @@ import java.util.List;
 public class ServidorController {
 
     private final ServidorService servidorService;
-    private final PeriodoAquisitivoRepository periodoAquisitivoRepository; // <-- NOVO: Injetando o repositório
+    private final PeriodoAquisitivoRepository periodoAquisitivoRepository;
 
     // DTO rápido criado aqui mesmo para receber o texto do motivo do Front-end
     public record MotivoRequest(String motivo) {}
@@ -85,6 +85,27 @@ public class ServidorController {
         servidorService.gerarHistoricoGozadoSimulado(id, anoInicio, anoFim);
 
         return ResponseEntity.ok("✅ Histórico de " + anoInicio + " até " + anoFim + " gerado com sucesso!");
+    }
+
+    // ==============================================================================
+    // ---> NOVAS ROTAS E DTO: AFASTAMENTOS (Faltas, Licenças, Suspensões)        <--
+    // ==============================================================================
+
+    // DTO para receber os dados do Afastamento do React
+    public record AfastamentoRequest(
+            br.gov.pb.seplag.controleferias.domain.TipoAfastamento tipo,
+            java.time.LocalDate dataInicio,
+            java.time.LocalDate dataFim
+    ) {}
+
+    // Rota para registrar o afastamento e recalcular as férias
+    @PostMapping("/{id}/afastamentos")
+    public ResponseEntity<Void> registrarAfastamento(
+            @PathVariable Long id,
+            @RequestBody AfastamentoRequest request) {
+
+        servidorService.registrarAfastamento(id, request.tipo(), request.dataInicio(), request.dataFim());
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
 }

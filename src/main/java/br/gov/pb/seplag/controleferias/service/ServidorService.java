@@ -1,8 +1,11 @@
 package br.gov.pb.seplag.controleferias.service;
 
+import br.gov.pb.seplag.controleferias.domain.Afastamento;
+import br.gov.pb.seplag.controleferias.domain.TipoAfastamento;
 import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo;
 import br.gov.pb.seplag.controleferias.domain.Servidor;
 import br.gov.pb.seplag.controleferias.domain.SolicitacaoFerias;
+import br.gov.pb.seplag.controleferias.repository.AfastamentoRepository;
 import br.gov.pb.seplag.controleferias.repository.PeriodoAquisitivoRepository;
 import br.gov.pb.seplag.controleferias.repository.ServidorRepository;
 import br.gov.pb.seplag.controleferias.repository.SolicitacaoFeriasRepository;
@@ -18,13 +21,12 @@ import java.util.List;
 public class ServidorService {
 
     private final ServidorRepository servidorRepository;
-
-    // Injetando o PeriodoAquisitivoService para usarmos a regra da admissão
     private final PeriodoAquisitivoService periodoService;
-
-    // ---> CORREÇÃO: Repositórios injetados para a nossa "Máquina do Tempo" funcionarem <---
     private final PeriodoAquisitivoRepository periodoAquisitivoRepository;
     private final SolicitacaoFeriasRepository solicitacaoFeriasRepository;
+
+    // ---> NOVO: Repositório de Afastamentos Injetado <---
+    private final AfastamentoRepository afastamentoRepository;
 
     @Transactional
     public Servidor cadastrar(Servidor servidor) {
@@ -118,6 +120,43 @@ public class ServidorService {
 
             // Salvando no repositório correto
             solicitacaoFeriasRepository.save(solicitacao);
+        }
+    }
+
+    // ==============================================================================
+    // ---> NOVA REGRA: RECALCULAR FÉRIAS APÓS AFASTAMENTO (Ex: Licença/Faltas) <---
+    // ==============================================================================
+    @Transactional
+    public void registrarAfastamento(Long servidorId, TipoAfastamento tipo, LocalDate dataInicio, LocalDate dataFim) {
+        Servidor servidor = servidorRepository.findById(servidorId)
+                .orElseThrow(() -> new IllegalArgumentException("Servidor não encontrado."));
+
+        // 1. Cria e salva o afastamento
+        Afastamento afastamento = new Afastamento();
+        afastamento.setServidor(servidor);
+        afastamento.setTipo(tipo);
+        afastamento.setDataInicio(dataInicio);
+        afastamento.setDataFim(dataFim);
+        afastamento.calcularDias();
+
+        afastamentoRepository.save(afastamento);
+
+        // 2. Busca todos os períodos aquisitivos do servidor
+        List<PeriodoAquisitivo> periodos = periodoAquisitivoRepository.findByServidorId(servidorId);
+
+        // 3. Encontra qual período estava "correndo" durante o afastamento e ajusta a data final
+        for (PeriodoAquisitivo periodo : periodos) {
+            // Verifica se o afastamento COMEÇOU dentro da vigência deste período aquisitivo
+            if (!dataInicio.isBefore(periodo.getDataInicio()) &&
+                    (periodo.getDataFim() == null || !dataInicio.isAfter(periodo.getDataFim()))) {
+
+                // Empurra a dataFim do período para frente, somando os exatos dias do afastamento
+                if (periodo.getDataFim() != null) {
+                    periodo.setDataFim(periodo.getDataFim().plusDays(afastamento.getQuantidadeDias()));
+                    periodoAquisitivoRepository.save(periodo);
+                }
+                break; // Atingiu o objetivo, encerra o loop
+            }
         }
     }
 }
