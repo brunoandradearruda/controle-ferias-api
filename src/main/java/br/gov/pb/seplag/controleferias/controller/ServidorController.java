@@ -1,7 +1,9 @@
 package br.gov.pb.seplag.controleferias.controller;
 
 import br.gov.pb.seplag.controleferias.domain.Servidor;
+import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo; // <-- IMPORT ADICIONADO
 import br.gov.pb.seplag.controleferias.service.ServidorService;
+import br.gov.pb.seplag.controleferias.repository.PeriodoAquisitivoRepository; // <-- IMPORT ADICIONADO
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +18,7 @@ import java.util.List;
 public class ServidorController {
 
     private final ServidorService servidorService;
+    private final PeriodoAquisitivoRepository periodoAquisitivoRepository; // <-- NOVO: Injetando o repositório
 
     // DTO rápido criado aqui mesmo para receber o texto do motivo do Front-end
     public record MotivoRequest(String motivo) {}
@@ -48,7 +51,6 @@ public class ServidorController {
         return ResponseEntity.ok().build();
     }
 
-
     // DTO para receber o ano do Front-end
     public record PeriodoAcumuladoRequest(int anoReferencia) {}
 
@@ -60,6 +62,16 @@ public class ServidorController {
 
         servidorService.adicionarPeriodoAcumulado(id, request.anoReferencia());
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    // ==============================================================================
+    // ---> NOVA ROTA: Buscar períodos já registrados do servidor (Resolve o 404) <--
+    // ==============================================================================
+    @GetMapping("/{id}/periodos")
+    public ResponseEntity<List<PeriodoAquisitivo>> listarPeriodosDoServidor(@PathVariable Long id) {
+        // Busca direto no banco todos os períodos atrelados a este servidor
+        List<PeriodoAquisitivo> periodosJaRegistrados = periodoAquisitivoRepository.findByServidorId(id);
+        return ResponseEntity.ok(periodosJaRegistrados);
     }
 
     // ENDPOINT TEMPORÁRIO PARA TESTES E SIMULAÇÕES (Pode apagar depois que for para produção)
@@ -74,6 +86,5 @@ public class ServidorController {
 
         return ResponseEntity.ok("✅ Histórico de " + anoInicio + " até " + anoFim + " gerado com sucesso!");
     }
-
 
 }

@@ -101,6 +101,16 @@ public class FeriasController {
         return ResponseEntity.ok(responseList);
     }
 
+
+    // Adicione esta rota no final do seu FeriasController
+    // Rota: GET http://localhost:8080/api/v1/alertas-risco
+    @GetMapping("/alertas-risco")
+    public ResponseEntity<List<br.gov.pb.seplag.controleferias.dto.AlertaFeriasDTO>> listarAlertasRisco() {
+        return ResponseEntity.ok(feriasService.gerarRelatorioDeRisco());
+    }
+
+
+
     // NOVO: Rota para INTERROMPER a solicitação de férias (Art. 81)
     // Rota: PUT http://localhost:8080/api/v1/solicitacoes/{id}/interromper
     @PutMapping("/solicitacoes/{id}/interromper")

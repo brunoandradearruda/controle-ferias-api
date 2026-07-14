@@ -4,6 +4,7 @@ import br.gov.pb.seplag.controleferias.domain.ModalidadeFerias;
 import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo;
 import br.gov.pb.seplag.controleferias.domain.Servidor;
 import br.gov.pb.seplag.controleferias.domain.SolicitacaoFerias;
+import br.gov.pb.seplag.controleferias.dto.AlertaFeriasDTO;
 import br.gov.pb.seplag.controleferias.repository.PeriodoAquisitivoRepository;
 import br.gov.pb.seplag.controleferias.repository.SolicitacaoFeriasRepository;
 import lombok.RequiredArgsConstructor;
@@ -260,4 +261,62 @@ public class FeriasService {
         periodoRepository.save(periodo);
         solicitacaoRepository.save(solicitacao);
     }
+
+    // Lembre-se de importar o AlertaFeriasDTO no topo do arquivo!
+
+    /**
+     * Regra de Negócio: Auditoria do Art. 79 (Painel de Risco)
+     */
+    public List<AlertaFeriasDTO> gerarRelatorioDeRisco() {
+        // Busca todo mundo que ainda tem saldo
+        List<PeriodoAquisitivo> pendentes = periodoRepository.findPeriodosComSaldoPendentes();
+        java.time.LocalDate hoje = java.time.LocalDate.now();
+        List<AlertaFeriasDTO> alertas = new java.util.ArrayList<>();
+
+        for (PeriodoAquisitivo p : pendentes) {
+            Servidor servidor = p.getServidor();
+            if (servidor == null) continue;
+
+            // 1. O teto absoluto: 12 meses após o fim do período aquisitivo
+            java.time.LocalDate dataLimiteAbsoluta = p.getDataFim().plusMonths(12);
+
+            // 2. A entrada na zona de risco: 11 meses após o fim (início do 23º mês)
+            java.time.LocalDate dataEntradaRisco = p.getDataFim().plusMonths(11);
+
+            String nivelRisco = null;
+
+            if (hoje.isAfter(dataLimiteAbsoluta) || hoje.isEqual(dataLimiteAbsoluta)) {
+                // Já passou dos 24 meses (Teto estourado)
+                nivelRisco = "VERMELHO";
+            } else if (hoje.isAfter(dataEntradaRisco) || hoje.isEqual(dataEntradaRisco)) {
+                // Entrou no 23º mês (Última chamada para não estourar o limite)
+                nivelRisco = "AMARELO";
+            }
+
+            // Se o servidor estiver em alguma das zonas de risco, adicionamos ao relatório
+            if (nivelRisco != null) {
+                alertas.add(new AlertaFeriasDTO(
+                        servidor.getNome(),
+                        servidor.getMatricula() != null ? servidor.getMatricula() : "-",
+                        servidor.getLotacao() != null ? servidor.getLotacao() : "Sem Lotação",
+                        p.getAnoReferencia(),
+                        p.getSaldoDias(),
+                        dataLimiteAbsoluta, // Mandamos a data limite real pro RH saber o prazo fatal
+                        nivelRisco
+                ));
+            }
+        }
+
+        // Ordena para que os alertas VERMELHOS (mais graves) apareçam primeiro na lista
+        alertas.sort((a, b) -> {
+            if (a.nivelRisco().equals(b.nivelRisco())) {
+                return a.dataLimiteGozo().compareTo(b.dataLimiteGozo()); // Se empatar a cor, ordena pela data
+            }
+            return a.nivelRisco().equals("VERMELHO") ? -1 : 1;
+        });
+
+        return alertas;
+    }
+
+
 }
