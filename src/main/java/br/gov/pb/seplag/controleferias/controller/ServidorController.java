@@ -2,8 +2,11 @@ package br.gov.pb.seplag.controleferias.controller;
 
 import br.gov.pb.seplag.controleferias.domain.Servidor;
 import br.gov.pb.seplag.controleferias.domain.PeriodoAquisitivo;
+import br.gov.pb.seplag.controleferias.dto.PeriodoAquisitivoDTO;
 import br.gov.pb.seplag.controleferias.service.ServidorService;
+import br.gov.pb.seplag.controleferias.service.CalculadoraPeriodoService;
 import br.gov.pb.seplag.controleferias.repository.PeriodoAquisitivoRepository;
+import br.gov.pb.seplag.controleferias.repository.ServidorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,10 @@ public class ServidorController {
 
     private final ServidorService servidorService;
     private final PeriodoAquisitivoRepository periodoAquisitivoRepository;
+
+    // ---> NOVAS INJEÇÕES PARA O MOTOR DE CÁLCULO <---
+    private final ServidorRepository servidorRepository;
+    private final CalculadoraPeriodoService calculadoraPeriodoService;
 
     // DTO rápido criado aqui mesmo para receber o texto do motivo do Front-end
     public record MotivoRequest(String motivo) {}
@@ -65,7 +72,7 @@ public class ServidorController {
     }
 
     // ==============================================================================
-    // ---> NOVA ROTA: Buscar períodos já registrados do servidor (Resolve o 404) <--
+    // ---> ROTA: Buscar períodos já registrados do servidor (Resolve o 404)       <--
     // ==============================================================================
     @GetMapping("/{id}/periodos")
     public ResponseEntity<List<PeriodoAquisitivo>> listarPeriodosDoServidor(@PathVariable Long id) {
@@ -88,7 +95,7 @@ public class ServidorController {
     }
 
     // ==============================================================================
-    // ---> NOVAS ROTAS E DTO: AFASTAMENTOS (Faltas, Licenças, Suspensões)        <--
+    // ---> ROTAS E DTO: AFASTAMENTOS (Faltas, Licenças, Suspensões)              <--
     // ==============================================================================
 
     // DTO para receber os dados do Afastamento do React
@@ -106,6 +113,21 @@ public class ServidorController {
 
         servidorService.registrarAfastamento(id, request.tipo(), request.dataInicio(), request.dataFim());
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    // ==============================================================================
+    // ---> NOVA ROTA: MOTOR DE CÁLCULO DE PERÍODOS DISPONÍVEIS                   <--
+    // ==============================================================================
+
+    @GetMapping("/{id}/periodos-disponiveis")
+    public ResponseEntity<List<PeriodoAquisitivoDTO>> getPeriodosDisponiveis(@PathVariable Long id) {
+
+        Servidor servidor = servidorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Servidor não encontrado"));
+
+        List<PeriodoAquisitivoDTO> periodos = calculadoraPeriodoService.calcularPeriodosDisponiveis(servidor);
+
+        return ResponseEntity.ok(periodos);
     }
 
 }
