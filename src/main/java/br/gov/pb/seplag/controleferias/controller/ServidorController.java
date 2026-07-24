@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map; // <-- Importante para enviar a mensagem de erro formatada
 
 @RestController
 @RequestMapping("/api/v1/servidores")
@@ -28,11 +29,21 @@ public class ServidorController {
     private final CalculadoraPeriodoService calculadoraPeriodoService;
 
     // DTO rápido criado aqui mesmo para receber o texto do motivo do Front-end
-    public record MotivoRequest(String motivo) {}
+    public record MotivoRequest(String motivo) {
 
-    // Rota para CRIAR um novo servidor
+    }
+
+    // ==============================================================================
+    // ---> ROTA: CADASTRAR (Com trava de segurança)                              <--
+    // ==============================================================================
     @PostMapping
-    public ResponseEntity<Servidor> cadastrar(@RequestBody Servidor servidor) {
+    public ResponseEntity<?> cadastrar(@RequestBody Servidor servidor) {
+
+        // Verifica se a matrícula já existe no banco
+        if (servidorRepository.existsByMatricula(servidor.getMatricula())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Operação negada: Já existe um servidor com esta matrícula no sistema."));
+        }
+
         Servidor novoServidor = servidorService.cadastrar(servidor);
         return ResponseEntity.status(HttpStatus.CREATED).body(novoServidor);
     }
@@ -115,9 +126,17 @@ public class ServidorController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-
+    // ==============================================================================
+    // ---> ROTA: ATUALIZAR (Com trava de segurança para não duplicar matrícula)  <--
+    // ==============================================================================
     @PutMapping("/{id}")
-    public ResponseEntity<Servidor> atualizarServidor(@PathVariable Long id, @RequestBody Servidor dadosAtualizados) {
+    public ResponseEntity<?> atualizarServidor(@PathVariable Long id, @RequestBody Servidor dadosAtualizados) {
+
+        // Verifica se a matrícula informada já pertence a OUTRO servidor (ignorando o ID atual)
+        if (servidorRepository.existsByMatriculaAndIdNot(dadosAtualizados.getMatricula(), id)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Operação negada: Esta matrícula já pertence a outro servidor."));
+        }
+
         return servidorRepository.findById(id)
                 .map(servidorExistente -> {
                     // Atualiza os dados permitidos
@@ -133,7 +152,6 @@ public class ServidorController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-
     // ==============================================================================
     // ---> NOVA ROTA: MOTOR DE CÁLCULO DE PERÍODOS DISPONÍVEIS                   <--
     // ==============================================================================
@@ -148,5 +166,4 @@ public class ServidorController {
 
         return ResponseEntity.ok(periodos);
     }
-
 }
