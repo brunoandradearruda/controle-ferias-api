@@ -49,6 +49,17 @@ public class PeriodoAquisitivo {
     private List<SolicitacaoFerias> solicitacoes = new ArrayList<>();
 
     // =========================================================================
+    // GATILHO DE AUTOMAÇÃO JPA (Calcula o ano sozinho ao salvar no banco)
+    // =========================================================================
+    @PrePersist
+    @PreUpdate
+    public void calcularAnoReferenciaAutomatico() {
+        if (this.anoReferencia == null && this.dataFim != null) {
+            this.anoReferencia = this.dataFim.getYear();
+        }
+    }
+
+    // =========================================================================
     // INTELIGÊNCIA ESTATUTÁRIA (LC 58/2003 - Art. 79)
     // As tags @JsonProperty forçam o Spring a injetar isso no JSON do Front-end
     // =========================================================================

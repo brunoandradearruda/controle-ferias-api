@@ -115,6 +115,25 @@ public class ServidorController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Servidor> atualizarServidor(@PathVariable Long id, @RequestBody Servidor dadosAtualizados) {
+        return servidorRepository.findById(id)
+                .map(servidorExistente -> {
+                    // Atualiza os dados permitidos
+                    servidorExistente.setNome(dadosAtualizados.getNome());
+                    servidorExistente.setMatricula(dadosAtualizados.getMatricula());
+                    servidorExistente.setCargo(dadosAtualizados.getCargo());
+                    servidorExistente.setLotacao(dadosAtualizados.getLotacao());
+
+                    // Salva no banco de dados
+                    Servidor servidorSalvo = servidorRepository.save(servidorExistente);
+                    return ResponseEntity.ok(servidorSalvo);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+
     // ==============================================================================
     // ---> NOVA ROTA: MOTOR DE CÁLCULO DE PERÍODOS DISPONÍVEIS                   <--
     // ==============================================================================
